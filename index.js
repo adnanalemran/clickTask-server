@@ -12,7 +12,7 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"], //if deploy replace
+    origin: ["http://localhost:5173","https://clicktask-adnan.web.app"], 
     credentials: true,
   })
 );
@@ -44,7 +44,6 @@ const verifyToken = (req, res, next) => {
 
 async function run() {
   try {
-    await client.connect();
     const userCollection = client.db("ClickTaskDB").collection("user");
     const taskCollection = client.db("ClickTaskDB").collection("task");
 
@@ -77,6 +76,21 @@ async function run() {
           .status(500)
           .json({ error: "Failed to insert data into the database" });
       }
+    });
+
+    app.patch("/task/:id", async (req, res) => {
+      const id = req.params.id;
+      const status = req.body.status;
+      console.log(id, status);
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          status: status,
+        },
+      };
+
+      const result = await userCollection.updateOne(filter, updatedDoc);
+      res.send(result);
     });
 
     app.get("/user", async (req, res) => {
@@ -112,10 +126,45 @@ async function run() {
       res.send(result);
     });
 
+
+    app.delete("/task/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await taskCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.put("/update-task-status/:id", async (req, res) => {
+      const taskId = req.params.id;
+      const { status } = req.body;
+    
+      taskCollection.findOneAndUpdate(
+        { _id: new ObjectId(taskId) },
+        { $set: { status } },
+        { returnDocument: 'after' }
+      )
+        .then(updatedTask => {
+          if (!updatedTask.value) {
+            return res.status(404).json({ error: 'Task not found' });
+          }
+          res.json(updatedTask.value);
+        })
+        .catch(error => {
+          console.error(error);
+          res.status(500).json({ error: 'Internal Server Error' });
+        });
+    });
+    
+
+
+
+
+
+    
+
     app.get("/filtered-my-task", async (req, res) => {
       const { email } = req.query;
       console.log(email);
-
       try {
         const filteredTasks = await taskCollection.find({ email }).toArray();
         res.json(filteredTasks);
@@ -124,11 +173,6 @@ async function run() {
         res.status(500).json({ error: "Failed to fetch and filter data" });
       }
     });
-
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -139,9 +183,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("Click task Backend server is running...");
+  res.send("Click task Backend v2 server is running...");
 });
 
 app.listen(port, () => {
-  console.log(`SERVER is Running on port ${port}`);
+  console.log(`SERVER is v2 Running on port ${port}`);
 });
