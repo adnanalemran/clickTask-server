@@ -12,7 +12,7 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173","https://clicktask-adnan.web.app"], 
+    origin: ["http://localhost:5173", "https://clicktask-adnan.web.app"],
     credentials: true,
   })
 );
@@ -46,6 +46,7 @@ async function run() {
   try {
     const userCollection = client.db("ClickTaskDB").collection("user");
     const taskCollection = client.db("ClickTaskDB").collection("task");
+    const noteCollection = client.db("ClickTaskDB").collection("note");
 
     //aurh releted api
     app.post("/jwt", (req, res) => {
@@ -126,7 +127,6 @@ async function run() {
       res.send(result);
     });
 
-
     app.delete("/task/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -137,42 +137,58 @@ async function run() {
     app.put("/update-task-status/:id", async (req, res) => {
       const taskId = req.params.id;
       const { status } = req.body;
-    
-      taskCollection.findOneAndUpdate(
-        { _id: new ObjectId(taskId) },
-        { $set: { status } },
-        { returnDocument: 'after' }
-      )
-        .then(updatedTask => {
+
+      taskCollection
+        .findOneAndUpdate(
+          { _id: new ObjectId(taskId) },
+          { $set: { status } },
+          { returnDocument: "after" }
+        )
+        .then((updatedTask) => {
           if (!updatedTask.value) {
-            return res.status(404).json({ error: 'Task not found' });
+            return res.status(404).json({ error: "Task not found" });
           }
           res.json(updatedTask.value);
         })
-        .catch(error => {
+        .catch((error) => {
           console.error(error);
-          res.status(500).json({ error: 'Internal Server Error' });
+          res.status(500).json({ error: "Internal Server Error" });
         });
     });
-    
 
+    //note api
+    app.post("/note", async (req, res) => {
+      const user = req.body;
+      try {
+        const result = await taskCollection.insertOne(user);
+        res.status(201).json({ message: "Note added successfully" });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .json({ error: "Failed to insert data into the database" });
+      }
+    });
 
-
-
-
-    
-
-    app.get("/filtered-my-task", async (req, res) => {
+    app.get("/filtered-my-note", async (req, res) => {
       const { email } = req.query;
       console.log(email);
       try {
-        const filteredTasks = await taskCollection.find({ email }).toArray();
+        const filteredTasks = await noteCollection.find({ email }).toArray();
         res.json(filteredTasks);
       } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Failed to fetch and filter data" });
       }
     });
+    app.delete("/note/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await noteCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //api end
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
